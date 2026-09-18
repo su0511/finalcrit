@@ -1,0 +1,552 @@
+<!DOCTYPE html><html lang="en" data-lvt-canonical="1"><!--
+Canvas: 单文件可交互网页，长滚动页面，总高度约 400vh，全屏 Canvas 2D 渲染文字
+Design given: 《百年孤独》英文文本，从正常书页排版随滚动渐变为有机波浪文字流动形态
+Asset map: 无外部图片资产，纯文字排版
+Palette: bg #F7F5ED -> --bg, text #1A1A1A -> --text, divider #D9D4C9 -> --divider, secondary #8A8070 -> --secondary
+Typography: Georgia / Times New Roman，18px，行高 1.65，字重 400
+Content map: 标题 "ONE HUNDRED YEARS OF SOLITUDE" -> header h1; 副标题 "CHAPTER ONE" -> header h2; 主文本 -> canvas 渲染
+Assumptions:
+  - Canvas 2D 逐行渲染，scroll progress (0→1) 控制正弦波偏移幅度
+  - 顶部区域 (0-20% scroll) 正常排版，过渡区 (20-55%)，高潮区 (55-100%) 完全波浪化
+  - 鼠标位置叠加轻微涟漪影响
+  - 纸张纹理通过 SVG noise 模拟
+  - 文本循环重复以填满足够行数
+  - header 有渐变背景遮罩，Canvas文字从标题下方开始
+QA risks: Canvas 字符间距与行高需精确计算，避免文字重叠或截断
+--><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>One Hundred Years of Solitude</title>
+  <style>
+    :root {
+      --bg: #F7F5ED;
+      --text: #1A1A1A;
+      --divider: #D9D4C9;
+      --secondary: #8A8070;
+      --font-serif: Georgia, 'Times New Roman', Times, serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-serif);
+    }
+
+    /* 纸张纹理 */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 50;
+      opacity: 0.018;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 200px 200px;
+    }
+
+    /* 滚动容器：400vh */
+    #scroll-container { height: 400vh; }
+
+    /* Canvas 固定层 */
+    #wave-canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 0;
+      display: block;
+    }
+
+    /* 顶部书页 header */
+    #book-header {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 72px;
+      /* 渐变遮罩：保证标题区域清晰，下方渐隐 */
+      background: linear-gradient(
+        to bottom,
+        #F7F5ED 0%,
+        #F7F5ED 58%,
+        rgba(247,245,237,0.92) 72%,
+        rgba(247,245,237,0.6) 85%,
+        rgba(247,245,237,0) 100%
+      );
+      padding-bottom: 80px;
+    }
+
+    #book-header .byline {
+      font-size: 12px;
+      letter-spacing: 0.38em;
+      color: var(--secondary);
+      text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+
+    #book-header h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(16px, 2.2vw, 26px);
+      font-weight: 400;
+      letter-spacing: 0.22em;
+      text-align: center;
+      color: var(--text);
+      text-transform: uppercase;
+      line-height: 1.5;
+      margin-bottom: 20px;
+    }
+
+    #book-header .rule {
+      width: 48px;
+      height: 1px;
+      background: var(--secondary);
+      opacity: 0.45;
+      margin: 0 auto 18px;
+    }
+
+    #book-header h2 {
+      font-size: 11px;
+      font-weight: 400;
+      letter-spacing: 0.42em;
+      color: var(--secondary);
+      text-transform: uppercase;
+    }
+
+    /* 底部提示 */
+    #scroll-hint {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 30;
+      text-align: center;
+      pointer-events: none;
+      /* 强背景遮罩 */
+      background: rgba(247,245,237,0.97);
+      padding: 12px 36px 10px;
+      white-space: nowrap;
+      border-radius: 2px;
+    }
+
+    #scroll-hint span {
+      display: block;
+      font-family: var(--font-serif);
+      font-size: 10px;
+      letter-spacing: 0.32em;
+      color: var(--secondary);
+      text-transform: uppercase;
+    }
+
+    #scroll-hint .arrow {
+      margin-top: 5px;
+      animation: bob 2.2s ease-in-out infinite;
+    }
+
+    @keyframes bob {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(4px); }
+    }
+
+    /* 页脚 */
+    #page-footer {
+      position: fixed;
+      bottom: 0; left: 0;
+      width: 100%;
+      z-index: 30;
+      display: flex;
+      justify-content: space-between;
+      padding: 0 52px 20px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.6s;
+      background: linear-gradient(to top, rgba(247,245,237,0.98) 0%, rgba(247,245,237,0.95) 60%, rgba(247,245,237,0) 100%);
+      padding-top: 20px;
+    }
+
+    #page-footer span {
+      font-family: var(--font-serif);
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      color: var(--secondary);
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+
+<div id="scroll-container" data-lvt-eid="961a3c1453"></div>
+<canvas id="wave-canvas" data-lvt-eid="9b79a79fd8"></canvas>
+
+<div id="book-header" data-lvt-eid="a2d1d46c21">
+  <div class="byline" data-lvt-eid="62814e6e36">Gabriel García Márquez</div>
+  <h1 data-lvt-eid="7ec3471a94">One Hundred Years<br data-lvt-eid="90653915f9">of Solitude</h1>
+  <div class="rule" data-lvt-eid="3df4b8ba70"></div>
+  <h2 data-lvt-eid="4623f87778">Chapter One</h2>
+</div>
+
+<div id="scroll-hint" data-lvt-eid="c458c31b94">
+  <span data-lvt-eid="878b7f3985">Scroll to read</span>
+  <span class="arrow" data-lvt-eid="64cb436c79">↓</span>
+</div>
+
+<div id="page-footer" data-lvt-eid="f59ab18fa2">
+  <span data-lvt-eid="005c357e06">One Hundred Years of Solitude</span>
+  <span id="pg" data-lvt-eid="2474c22c09">—</span>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── 文本 ──────────────────────────────────────────────────────────────────
+  const PASSAGE = 'Many years later, as he faced the firing squad, Colonel Aureliano Buendía was to remember that distant afternoon when his father took him to discover ice. At that time Macondo was a village of twenty adobe houses, built on the bank of a river of clear water that ran along a bed of polished stones, which were white and enormous, like prehistoric eggs. The world was so recent that many things lacked names, and in order to indicate them it was necessary to point. Every year during the month of March a family of ragged gypsies would set up their tents near the village, and with a great uproar of pipes and kettledrums they would display new inventions. First they brought the magnet. A heavy gypsy with an untamed beard and sparrow hands, who introduced himself as Melquíades, put on a bold public demonstration of what he himself called the eighth wonder of the learned alchemists of Macedonia. He went from house to house dragging two metal ingots and everybody was amazed to see pots, pans, tongs, and braziers tumble down from their places and beams creak from the desperation of nails and screws trying to emerge, and even objects that had been lost for a long time appeared from where they had been searched for most and went dragging along in turbulent confusion behind Melquíades\' magical irons. Things have a life of their own, the gypsy proclaimed with a harsh accent. It is simply a matter of waking up their souls. José Arcadio Buendía, whose unbridled imagination always went beyond the genius of nature and even beyond miracles and magic, thought that it would be possible to make use of that useless invention to extract gold from the bowels of the earth.';
+
+  // ── Canvas 设置 ────────────────────────────────────────────────────────────
+  const canvas = document.getElementById('wave-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const FS = 18;
+  const LH = Math.round(FS * 1.65);
+  const FONT = `400 ${FS}px Georgia, 'Times New Roman', serif`;
+
+  let W = 0, H = 0;
+  let lines = [];
+  let linePhaseSeeds = [];   // [改进2] 每行固定随机相位种子
+  let wordGroups = [];       // [改进7] 每行的词组分组
+  let mouseX = 0.5, mouseY = 0.5;
+  let spTarget = 0;          // [改进4] 目标滚动进度
+  let sp = 0;                // [改进4] 惯性插值后的实际进度
+  let t = 0;
+
+  // ── 轻量 Simplex-like 噪声（2D，无外部依赖）──────────────────────────────
+  // 基于 Stefan Gustavson 的简化版，仅用于字符扭曲
+  const _p = new Uint8Array(512);
+  (function seedPerm() {
+    const base = [151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,
+      69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,
+      117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,
+      134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,
+      46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,
+      200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,
+      123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,
+      223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,
+      39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,
+      193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,
+      181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,
+      114,67,29,24,72,243,141,128,195,78,66,215,61,156,180];
+    for (let i = 0; i < 256; i++) _p[i] = _p[i + 256] = base[i];
+  })();
+  function _fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+  function _lerp(a, b, t) { return a + t * (b - a); }
+  function _grad(h, x, y) {
+    h &= 7;
+    const u = h < 4 ? x : y, v = h < 4 ? y : x;
+    return ((h & 1) ? -u : u) + ((h & 2) ? -v : v);
+  }
+  function noise2(x, y) {
+    const X = Math.floor(x) & 255, Y = Math.floor(y) & 255;
+    x -= Math.floor(x); y -= Math.floor(y);
+    const u = _fade(x), v = _fade(y);
+    const a = _p[X] + Y, b = _p[X + 1] + Y;
+    return _lerp(
+      _lerp(_grad(_p[a],     x,     y), _grad(_p[b],     x - 1, y),     u),
+      _lerp(_grad(_p[a + 1], x,     y - 1), _grad(_p[b + 1], x - 1, y - 1), u),
+      v
+    );
+  }
+
+  // ── 文本换行 + 词组分组 ────────────────────────────────────────────────────
+  function wrapText() {
+    ctx.font = FONT;
+    const maxW = Math.min(W * 0.60, 660);
+    const words = (PASSAGE + ' ' + PASSAGE + ' ' + PASSAGE).split(' ');
+    const result = [];
+    let cur = '';
+    for (const w of words) {
+      const test = cur ? cur + ' ' + w : w;
+      if (ctx.measureText(test).width > maxW && cur) {
+        result.push(cur);
+        cur = w;
+      } else {
+        cur = test;
+      }
+    }
+    if (cur) result.push(cur);
+    while (result.length < 100) result.push(...result.slice(0, result.length));
+    lines = result.slice(0, 120);
+
+    // [改进2] 为每行生成固定随机相位种子（用简单 LCG，保证每次 wrapText 后一致）
+    linePhaseSeeds = lines.map((_, i) => {
+      // 伪随机：每行一个独立相位偏移 [0, 2π]
+      const r = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+      return (r - Math.floor(r)) * Math.PI * 2;
+    });
+
+    // [改进7] 将每行文字分成 2-4 词的词组，记录每组的起始字符索引和词组相位种子
+    wordGroups = lines.map((line, li) => {
+      const ws = line.split(' ');
+      const groups = [];
+      let charIdx = 0;
+      let wi = 0;
+      while (wi < ws.length) {
+        const size = 2 + ((li * 7 + wi * 13) % 3); // 2-4 词
+        const slice = ws.slice(wi, wi + size);
+        const text = slice.join(' ');
+        const seed = Math.sin(li * 91.3 + wi * 47.9) * 43758.5453;
+        groups.push({
+          text,
+          charStart: charIdx,
+          charLen: text.length,
+          seed: (seed - Math.floor(seed)) * Math.PI * 2
+        });
+        charIdx += text.length + 1; // +1 for space
+        wi += size;
+      }
+      return groups;
+    });
+  }
+
+  // ── 缩放 ────────────────────────────────────────────────────────────────────
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    wrapText();
+  }
+
+  // ── 平滑步进 ────────────────────────────────────────────────────────────────
+  function ss(a, b, x) {
+    const v = Math.max(0, Math.min(1, (x - a) / (b - a)));
+    return v * v * (3 - 2 * v);
+  }
+
+  // ── 渲染 ────────────────────────────────────────────────────────────────────
+  function draw() {
+    // [改进9] 更慢的全局时间步长，文学感漂移
+    t += 0.004;
+
+    // [改进4] 惯性插值：sp 向 spTarget lerp，系数 0.06 → 平滑跟随
+    sp += (spTarget - sp) * 0.06;
+
+    // 清空 + 背景
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#F7F5ED';
+    ctx.fillRect(0, 0, W, H);
+
+    // [改进8] 更柔和的过渡：各阶段区间重叠，用 ss 做连续 morph
+    // 正常 → 波浪：0.08-0.55（宽区间，缓慢进入）
+    // 波浪 → 扭曲：0.32-0.80（与波浪大幅重叠）
+    // 扭曲 → 流动：0.58-1.00（与扭曲重叠）
+    const waveAmt = ss(0.08, 0.55, sp);
+    const distAmt = ss(0.32, 0.80, sp);
+    const flowAmt = ss(0.58, 1.00, sp);
+
+    // [改进5] 振幅随视口垂直中心增强（在渲染循环内按行计算）
+    const maxAmp = H * 0.10;
+
+    // 鼠标涟漪（轻微）
+    const mxOff = (mouseX - 0.5) * 9 * waveAmt;
+    const myOff = (mouseY - 0.5) * 6 * waveAmt;
+    // [改进5] 鼠标 Y 位置影响振幅（鼠标在中间时振幅最大）
+    const mouseAmpBoost = 1 + 0.25 * (1 - Math.abs(mouseY - 0.5) * 2) * waveAmt;
+
+    const colW = Math.min(W * 0.60, 660);
+    const cx   = W / 2;
+
+    const hdrH  = 300 * (1 - ss(0, 0.22, sp));
+    const startY = hdrH + 48;
+
+    // [改进3] 行间距微变（Y 轴整体漂移）
+    const lhMod = 1 + flowAmt * 0.26 * Math.sin(t * 0.55);
+
+    const scrollOff = sp * lines.length * LH * 0.72;
+
+    ctx.font = FONT;
+    ctx.textBaseline = 'alphabetic';
+
+    for (let i = 0; i < lines.length; i++) {
+      const txt = lines[i];
+      const seed = linePhaseSeeds[i]; // [改进2] 每行独立相位
+
+      const by = startY + i * LH * lhMod - scrollOff;
+      if (by < -LH * 3 || by > H + LH * 3) continue;
+
+      const relY = by / H;
+
+      // [改进5] 振幅随行的垂直位置增强（中间行振幅最大）
+      const centerBoost = 1 + 0.35 * Math.max(0, 1 - Math.abs(relY - 0.5) * 2.2);
+      const amp = maxAmp * waveAmt * centerBoost * mouseAmpBoost;
+
+      // [改进1] 叠加三层正弦波：主波 + 中频 + 高频微颤
+      // 每层有独立频率、速度、振幅比例，加上行的随机相位种子
+      const wy =
+        amp * 0.60 * Math.sin(i * 0.38 + t * 0.90 + seed) +
+        amp * 0.28 * Math.sin(i * 0.71 + t * 1.55 + seed * 1.3) +
+        amp * 0.12 * Math.sin(i * 1.30 + t * 2.80 + seed * 0.7);
+
+      // [改进3] Y 轴额外漂移（独立于波浪，模拟液体上下涌动）
+      const yDrift = flowAmt * 6 *
+        (Math.sin(i * 0.29 + t * 0.42 + seed * 0.5) +
+         0.4 * Math.sin(i * 0.63 + t * 0.78 + seed));
+
+      // [改进1] 水平漂移也叠加双频
+      const dx =
+        flowAmt * 28 * Math.sin(i * 0.48 + t * 0.50 + seed * 0.8) +
+        flowAmt * 12 * Math.sin(i * 0.93 + t * 0.85 + seed * 1.6) +
+        mxOff;
+
+      const fy = by + wy + yDrift;
+
+      // 透明度
+      let alpha = 1;
+      if (relY > 0.85) alpha = (1 - relY) / 0.15;
+      if (by < startY + LH) alpha *= Math.max(0, (by - startY) / LH);
+      alpha = Math.max(0, Math.min(1, alpha));
+      if (alpha < 0.005) continue;
+
+      if (flowAmt > 0) {
+        const dm = 0.68 + 0.32 * Math.abs(Math.sin(i * 0.65 + t * 0.32 + seed));
+        alpha *= (1 - flowAmt * 0.22 + flowAmt * 0.22 * dm);
+      }
+
+      // ── 逐字符 + 词组扭曲 ────────────────────────────────────────────────
+      if (distAmt > 0.02) {
+        const chars = txt.split('');
+        let totalW = 0;
+        for (const ch of chars) totalW += ctx.measureText(ch).width;
+        let cx2 = cx - totalW / 2 + dx;
+
+        // [改进7] 构建字符→词组偏移映射
+        const groups = wordGroups[i] || [];
+        // 为每个词组计算一个整体漂移偏移
+        const groupOffsets = groups.map(g => {
+          const gp = g.seed + t * 0.38;
+          return {
+            dy: distAmt * 5.5 * Math.sin(gp),
+            dx: distAmt * 3.0 * Math.cos(gp * 0.72)
+          };
+        });
+
+        // 字符索引 → 所属词组
+        let charGroupIdx = new Array(chars.length).fill(0);
+        let gci = 0;
+        for (let gi = 0; gi < groups.length; gi++) {
+          const end = groups[gi].charStart + groups[gi].charLen;
+          while (gci < chars.length && gci < end) {
+            charGroupIdx[gci] = gi;
+            gci++;
+          }
+        }
+
+        for (let ci = 0; ci < chars.length; ci++) {
+          const ch = chars[ci];
+          const cw = ctx.measureText(ch).width;
+
+          // [改进6] 多频噪声扭曲：用 noise2 + 额外高频正弦
+          const nx = ci * 0.18 + i * 0.11;
+          const ny = t * 0.55 + seed * 0.3;
+          const nv = noise2(nx, ny); // [-1, 1]
+
+          // 主扭曲（noise 驱动）
+          const cdy_noise = distAmt * 11 * nv;
+          const cdx_noise = distAmt * 4.5 * noise2(nx + 100, ny + 50);
+
+          // 高频微颤（正弦叠加）
+          const cp = ci * 0.23 + i * 0.16 + t * 1.20 + seed;
+          const cdy_sin = distAmt * 4 * Math.sin(cp * 1.7);
+          const cdx_sin = distAmt * 1.8 * Math.cos(cp * 2.3 + t * 0.6);
+
+          // [改进6] 微小旋转（用 canvas transform）
+          const rot = distAmt * 0.06 * nv; // 最大约 3.4°
+
+          // [改进7] 词组整体漂移叠加
+          const gi = charGroupIdx[ci];
+          const gOff = groupOffsets[gi] || { dx: 0, dy: 0 };
+
+          const finalCdx = cdx_noise + cdx_sin + gOff.dx;
+          const finalCdy = cdy_noise + cdy_sin + gOff.dy;
+
+          const ca = alpha * (1 - distAmt * 0.10 + distAmt * 0.10 * Math.abs(nv));
+
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, Math.min(1, ca));
+          ctx.fillStyle = '#1A1A1A';
+          // [改进6] 应用微旋转：以字符中心为轴
+          const charCx = cx2 + cw / 2 + finalCdx;
+          const charCy = fy + finalCdy;
+          ctx.translate(charCx, charCy);
+          ctx.rotate(rot);
+          ctx.fillText(ch, -cw / 2, 0);
+          ctx.restore();
+
+          cx2 += cw;
+        }
+      } else {
+        // 整行渲染（正常 / 轻微波浪阶段）
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = '#1A1A1A';
+        ctx.textAlign = 'left';
+        ctx.fillText(txt, cx - colW / 2 + dx, fy);
+      }
+    }
+
+    ctx.globalAlpha = 1;
+
+    // 装饰线（早期阶段）
+    if (sp < 0.25) {
+      const la = (1 - ss(0.12, 0.25, sp)) * 0.35;
+      ctx.globalAlpha = la;
+      ctx.strokeStyle = '#D9D4C9';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - 36, 48);
+      ctx.lineTo(cx + 36, 48);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  // ── UI 更新 ──────────────────────────────────────────────────────────────────
+  const hdr    = document.getElementById('book-header');
+  const hint   = document.getElementById('scroll-hint');
+  const footer = document.getElementById('page-footer');
+  const pg     = document.getElementById('pg');
+
+  function updateUI() {
+    hdr.style.opacity    = String(1 - ss(0.04, 0.24, sp));
+    hint.style.opacity   = String(1 - ss(0.02, 0.09, sp));
+    footer.style.opacity = String(ss(0.58, 0.72, sp));
+    pg.textContent       = String(Math.floor(sp * 14) + 1);
+  }
+
+  // ── 事件 ─────────────────────────────────────────────────────────────────────
+  window.addEventListener('scroll', () => {
+    const maxS = document.documentElement.scrollHeight - window.innerHeight;
+    // [改进4] 只更新目标值，实际 sp 在 draw() 中 lerp
+    spTarget = maxS > 0 ? Math.min(window.scrollY / maxS, 1) : 0;
+    updateUI();
+  }, { passive: true });
+
+  window.addEventListener('mousemove', e => {
+    mouseX = e.clientX / W;
+    mouseY = e.clientY / H;
+  }, { passive: true });
+
+  window.addEventListener('resize', resize);
+
+  // ── 初始化 ───────────────────────────────────────────────────────────────────
+  resize();
+  updateUI();
+  draw();
+
+}());
+</script>
+
+
+</body></html>
