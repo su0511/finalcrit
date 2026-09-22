@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f4f4f2">
+<title>02 — One Hundred Years of Solitude</title>
+<style>:root {
+  --paper: #f4f4f2;
+  --ink: #292927;
+  --muted: #85857e;
+  --mono: "Courier New", Courier, monospace;
+  --column: 448px;
+  --left: max(28px, calc((100vw - var(--column)) / 2));
+  --top: 30vh;
+  color-scheme: light;
+  background: var(--paper);
+  font-family: var(--mono);
+  color: var(--ink);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body { isolation: isolate; }
+body::before, body::after {
+  content: ""; position: fixed; inset: 0; pointer-events: none;
+}
+body::before {
+  z-index: -1;
+  background: radial-gradient(ellipse at 50% 42%, #fafaf7 0%, #f4f4f2 60%, #edede9 100%);
+}
+body::after {
+  z-index: 3; opacity: .018;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+body[data-experience="field"] { height: 100svh; overflow: hidden; }
+#reading-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: none; z-index: 1; }
+.is-ready #reading-canvas { display: block; }
+body[data-experience="field"] #reading-canvas { touch-action: pinch-zoom; }
+body[data-experience="waves"] #reading-canvas { touch-action: pan-y pinch-zoom; }
+.page-switch {
+  position: fixed; top: 22px; right: 28px; z-index: 10;
+  display: flex; gap: 6px;
+}
+.page-switch a {
+  position: relative; display: grid; place-items: center;
+  width: 44px; height: 44px; color: var(--muted);
+  text-decoration: none; font-size: 11px; letter-spacing: .05em;
+  transition: color .2s;
+}
+.page-switch a::after {
+  content: ""; position: absolute; bottom: 6px; left: 16px; right: 16px;
+  height: 1px; background: currentColor;
+  opacity: 0; transform: scaleX(.3); transition: opacity .2s, transform .2s;
+}
+.page-switch a[aria-current="page"] { color: var(--ink); }
+.page-switch a[aria-current="page"]::after { opacity: .7; transform: scaleX(1); }
+.page-switch a:hover { color: var(--ink); }
+.page-switch a:hover::after { opacity: .4; transform: scaleX(1); }
+a:focus-visible, button:focus-visible { outline: 1px solid #77776f; outline-offset: 3px; border-radius: 2px; }
+.source {
+  position: fixed; z-index: 4; bottom: 31px; left: var(--left);
+  width: var(--column); padding-right: 4px; margin: 0;
+  color: #797972; font-size: 9px; line-height: 1.7; letter-spacing: .025em;
+}
+.source cite { font-style: normal; }
+.reading-text { overflow-wrap: anywhere; width: var(--column); margin: var(--top) auto 100px; font-size: 14px; line-height: 2; }
+.reading-text p { margin: 0 0 28px; }
+.is-ready .reading-text {
+  position: absolute; width: 1px; height: 1px; padding: 0;
+  margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.scroll-cue {
+  display: none; position: fixed; z-index: 5; right: 28px; bottom: 20px;
+  width: 44px; height: 44px; border: 0; padding: 0; background: transparent;
+  color: #86867e; font: 16px var(--mono); cursor: pointer;
+  transition: opacity .3s, color .2s;
+}
+.is-ready .scroll-cue { display: block; }
+.scroll-cue:hover { color: var(--ink); }
+.scroll-cue[hidden] { display: none; }
+#scroll-space { width: 1px; pointer-events: none; }
+@view-transition { navigation: auto; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .35s; }
+@media (max-width: 600px) {
+  :root { --column: calc(100vw - 56px); }
+  .page-switch { top: 16px; right: 16px; }
+  .source { bottom: 25px; padding-right: 34px; font-size: 8px; }
+  .scroll-cue { right: 10px; bottom: 15px; }
+}
+@media (max-height: 480px) {
+  .page-switch { top: 8px; }
+  .source { bottom: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}
+
+#reading-canvas:focus-visible { outline: 1px solid #99998f; outline-offset: -16px; }
+.is-static body[data-experience="field"] { height: auto; overflow-y: auto; }
+.is-static #reading-canvas { display: none; }
+.is-static .reading-text {
+  position: relative; width: var(--column); height: auto; margin: 94px auto 44px;
+  padding: 0; overflow: visible; clip-path: none; white-space: normal;
+}
+.is-static .source { position: relative; left: auto; bottom: auto; margin: 32px auto; }
+
+.is-static #scroll-space, .is-static .scroll-cue { display: none; }
+</style>
+</head>
+<body data-experience="waves">
+<nav class="page-switch" aria-label="切换文字体验"><a href="index.html" aria-label="01 · 文字粒子">01</a><a href="waves.html" aria-label="02 · 文字波浪" aria-current="page">02</a></nav>
+<canvas id="reading-canvas" aria-hidden="true"></canvas>
+<main class="reading-text" aria-label="One Hundred Years of Solitude"><p>Many years later, as he faced the firing squad, Colonel Aureliano Buendía was to remember that distant afternoon when his father took him to discover ice. At that time Macondo was a village of twenty adobe houses, built on the bank of a river of clear water that ran along a bed of polished stones, which were white and enormous, like prehistoric eggs. The world was so recent that many things lacked names, and in order to indicate them it was necessary to point.</p><p>Every year during the month of March a family of ragged gypsies would set up their tents near the village, and with a great uproar of pipes and kettledrums they would display new inventions. First they brought the magnet. A heavy gypsy with an untamed beard and sparrow hands, who introduced himself as Melquíades, put on a bold public demonstration of what he himself called the eighth wonder of the learned alchemists of Macedonia.</p><p>He went from house to house dragging two metal ingots and everybody was amazed to see pots, pans, tongs, and braziers tumble down from their places and beams creak from the desperation of nails and screws trying to emerge, and even objects that had been lost for a long time appeared from where they had been searched for most and went dragging along in turbulent confusion behind Melquíades&#x27; magical irons.</p><p>Things have a life of their own, the gypsy proclaimed with a harsh accent.</p><p>It is simply a matter of waking up their souls.</p></main>
+<div id="scroll-space" aria-hidden="true"></div><button class="scroll-cue" aria-label="继续阅读" type="button">↓</button>
+<p class="source">Gabriel García Márquez <span aria-hidden="true">·</span> <cite>One Hundred Years of Solitude</cite></p>
+<script>window.createWaveExperience = function ({ canvas, ctx, paragraphs, layout, reduceMotion, requestDraw }) {
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+  const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  let L = layout, reduced = reduceMotion;
+  let lines = [], endingLines = [], endTop = 0, travel = 1;
+  let scroll = 0, target = 0, energy = 0, direction = 1, time = 0;
+  let lastScrollTime = 0, lastScrollY = window.scrollY;
+  const spacer = document.getElementById('scroll-space');
+  const cue = document.querySelector('.scroll-cue');
+  const source = document.querySelector('.source');
+
+  function wrap(text) {
+    const result = []; let line = '';
+    for (const word of text.split(/\s+/)) {
+      const next = line ? line + ' ' + word : word;
+      if (ctx.measureText(next).width > L.columnWidth && line) { result.push(line); line = word; }
+      else line = next;
+    }
+    if (line) result.push(line);
+    return result;
+  }
+
+  function resize(next) {
+    L = next; ctx.font = L.font;
+    let y = L.top;
+    lines = [];
+    for (const paragraph of paragraphs.slice(0, -1)) {
+      for (const text of wrap(paragraph)) { lines.push({ text, y }); y += L.lineHeight; }
+      y += L.lineHeight * .65;
+    }
+    // The final sentence exists only once, separated by a deliberate pause.
+    endTop = y + Math.max(140, L.height * .36);
+    endingLines = wrap(paragraphs[paragraphs.length - 1]).map((text, i) => ({ text, y: endTop + i * L.lineHeight }));
+    const endingHeight = endingLines.length * L.lineHeight;
+    const restingTop = Math.max(90, L.height * .44 - endingHeight / 2);
+    travel = Math.max(1, endTop - restingTop);
+    spacer.style.height = Math.ceil(travel + L.height) + 'px';
+    target = clamp(window.scrollY, 0, travel);
+    scroll = target; lastScrollY = target; energy = 0;
+    requestDraw();
+  }
+
+  function onScroll() {
+    const now = performance.now();
+    const next = clamp(window.scrollY, 0, travel);
+    const elapsed = Math.max(16, now - lastScrollTime);
+    const delta = next - lastScrollY;
+    // Real scroll speed determines the current. No sustained idle animation.
+    if (!reduced && Math.abs(delta) > .1) {
+      direction = Math.sign(delta);
+      energy = Math.min(1, energy + Math.min(1, Math.abs(delta) / elapsed / 1.5) * .55);
+    }
+    target = next; lastScrollY = next; lastScrollTime = now;
+    requestDraw();
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  cue.addEventListener('click', () => {
+    window.scrollTo({ top: Math.min(travel, window.scrollY + L.height * .65), behavior: reduced ? 'auto' : 'smooth' });
+  });
+
+  function drawLine(line, index, amplitude) {
+    const baseline = line.y - scroll + L.fontSize;
+    if (baseline < 55 || baseline > L.height - 56) return;
+    const alpha = smooth(65, 112, baseline) * (1 - smooth(L.height - 110, L.height - 62, baseline));
+    if (alpha < .001) return;
+    ctx.globalAlpha = alpha;
+    if (amplitude < .025) { ctx.fillText(line.text, L.left, baseline); return; }
+    let x = L.left;
+    // A shared phase across adjacent letters/lines keeps words coherent.
+    for (const ch of line.text) {
+      const cw = ctx.measureText(ch).width;
+      const phase = (x - L.left) / L.columnWidth * Math.PI * 1.7 + index * .34 - time * direction;
+      const edge = Math.sin(Math.PI * clamp((x - L.left) / L.columnWidth, 0, 1));
+      const dy = Math.sin(phase) * amplitude * (.45 + edge * .55);
+      const dx = Math.cos(phase * .7) * amplitude * .18;
+      ctx.fillText(ch, x + dx, baseline + dy);
+      x += cw;
+    }
+  }
+
+  function frame(now, dt) {
+    dt = Math.min(.05, Math.max(.001, dt));
+    scroll = reduced ? target : scroll + (target - scroll) * (1 - Math.exp(-dt * 13));
+    if (Math.abs(scroll - target) < .025) scroll = target;
+    energy *= Math.exp(-dt * 2.4);
+    if (energy < .0005) energy = 0;
+    time += dt * (1 + energy * 2);
+    const progress = clamp(scroll / travel, 0, 1);
+    // Readable opening, one swell, a quiet interval, then a calm ending.
+    const middle = smooth(.025, .2, progress) * (1 - smooth(.7, .98, progress));
+    const breath = 1 - .68 * Math.exp(-Math.pow((progress - .48) / .09, 2));
+    const amplitude = reduced ? 0 : Math.min(19, L.lineHeight * .65) * energy * middle * breath;
+    ctx.font = L.font; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left'; ctx.fillStyle = '#292927';
+    lines.forEach((line, i) => drawLine(line, i, amplitude));
+    endingLines.forEach((line, i) => drawLine(line, lines.length + i, amplitude * (1 - smooth(.72, .96, progress))));
+    ctx.globalAlpha = 1;
+    cue.hidden = progress > .985;
+    cue.setAttribute('aria-label', progress > .55 ? '读到结尾' : '继续阅读');
+    source.style.opacity = String(.8 + smooth(.82, 1, progress) * .2);
+    return energy > 0 || scroll !== target;
+  }
+  resize(L);
+  return { resize, frame, pointer() {}, setReducedMotion(value) { reduced = value; energy = 0; requestDraw(); } };
+};
+</script>
+<script>(function () {
+  'use strict';
+  const canvas = document.getElementById('reading-canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const mode = document.body.dataset.experience;
+  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let experience = null, frameId = 0, lastTime = 0;
+  let L, ratio, staticLayout = false;
+  const paragraphs = [...document.querySelectorAll('.reading-text p')].map(p => p.textContent.trim());
+  function requestDraw() {
+    if (!frameId && !document.hidden) frameId = requestAnimationFrame(draw);
+  }
+  function draw(now) {
+    frameId = 0;
+    if (!experience || staticLayout) return;
+    const dt = lastTime ? Math.min(.05, (now - lastTime) / 1000) : 1 / 60;
+    lastTime = now;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, L.width, L.height);
+    if (experience.frame(now, dt)) requestDraw();
+  }
+  function size() {
+    const width = window.innerWidth, height = window.innerHeight;
+    const fontSize = height < 560 ? 12 : 14;
+    const lineHeight = fontSize * 2;
+    const columnWidth = Math.min(448, width - 56);
+    const left = (width - columnWidth) / 2;
+    const top = Math.max(94, Math.min(height * .3, height - 300));
+    ratio = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    L = { width, height, fontSize, lineHeight, columnWidth, left, top, font: `${fontSize}px "Courier New", Courier, monospace` };
+    document.documentElement.style.setProperty('--column', columnWidth + 'px');
+    document.documentElement.style.setProperty('--left', left + 'px');
+    document.documentElement.style.setProperty('--top', top + 'px');
+    ctx.font = L.font;
+    let line = '', lineCount = 1;
+    for (const word of paragraphs.join(' ').split(/\s+/)) {
+      const next = line ? line + ' ' + word : word;
+      if (line && ctx.measureText(next).width > columnWidth) { lineCount++; line = word; }
+      else line = next;
+    }
+    let endingLine = '', endingCount = 1;
+    for (const word of paragraphs[paragraphs.length - 1].split(/\s+/)) {
+      const next = endingLine ? endingLine + ' ' + word : word;
+      if (endingLine && ctx.measureText(next).width > columnWidth) { endingCount++; endingLine = word; }
+      else endingLine = next;
+    }
+    staticLayout = mode === 'field'
+      ? top + lineCount * lineHeight > height - 64
+      : endingCount * lineHeight > height - 160;
+    document.documentElement.classList.toggle('is-static', staticLayout);
+    if (experience) experience.resize(L);
+    requestDraw();
+  }
+  size();
+  const options = { canvas, ctx, text: paragraphs.join(' '), paragraphs, layout: L, reduceMotion: motion.matches, requestDraw };
+  experience = mode === 'field' ? window.createFieldExperience(options) : window.createWaveExperience(options);
+  document.documentElement.classList.add('is-ready');
+  for (const [eventName, type] of [['pointermove', 'move'], ['pointerdown', 'down'], ['pointerleave', 'leave'], ['pointerup', 'up'], ['pointercancel', 'leave']]) {
+    canvas.addEventListener(eventName, event => {
+      if (type === 'down' && event.button !== 0) return;
+      experience.pointer(type, event);
+      requestDraw();
+    }, { passive: true });
+  }
+  if (mode === 'field') {
+    canvas.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      if (event.repeat) return;
+      experience.pointer('down', { clientX: L.left + L.columnWidth / 2, clientY: L.top + L.lineHeight * 2.5, button: 0 });
+      requestDraw();
+    });
+  }
+  window.addEventListener('resize', size, { passive: true });
+  motion.addEventListener('change', event => { experience.setReducedMotion(event.matches); requestDraw(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { cancelAnimationFrame(frameId); frameId = 0; }
+    else { lastTime = 0; requestDraw(); }
+  });
+  window.addEventListener('pageshow', () => { lastTime = 0; size(); });
+  requestDraw();
+}());
+</script>
+</body>
+</html>

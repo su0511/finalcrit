@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f4f4f2">
+<title>01 — The Odyssey</title>
+<style>:root {
+  --paper: #f4f4f2;
+  --ink: #292927;
+  --muted: #85857e;
+  --mono: "Courier New", Courier, monospace;
+  --column: 448px;
+  --left: max(28px, calc((100vw - var(--column)) / 2));
+  --top: 30vh;
+  color-scheme: light;
+  background: var(--paper);
+  font-family: var(--mono);
+  color: var(--ink);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body { isolation: isolate; }
+body::before, body::after {
+  content: ""; position: fixed; inset: 0; pointer-events: none;
+}
+body::before {
+  z-index: -1;
+  background: radial-gradient(ellipse at 50% 42%, #fafaf7 0%, #f4f4f2 60%, #edede9 100%);
+}
+body::after {
+  z-index: 3; opacity: .018;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+body[data-experience="field"] { height: 100svh; overflow: hidden; }
+#reading-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: none; z-index: 1; }
+.is-ready #reading-canvas { display: block; }
+body[data-experience="field"] #reading-canvas { touch-action: pinch-zoom; }
+body[data-experience="waves"] #reading-canvas { touch-action: pan-y pinch-zoom; }
+.page-switch {
+  position: fixed; top: 22px; right: 28px; z-index: 10;
+  display: flex; gap: 6px;
+}
+.page-switch a {
+  position: relative; display: grid; place-items: center;
+  width: 44px; height: 44px; color: var(--muted);
+  text-decoration: none; font-size: 11px; letter-spacing: .05em;
+  transition: color .2s;
+}
+.page-switch a::after {
+  content: ""; position: absolute; bottom: 6px; left: 16px; right: 16px;
+  height: 1px; background: currentColor;
+  opacity: 0; transform: scaleX(.3); transition: opacity .2s, transform .2s;
+}
+.page-switch a[aria-current="page"] { color: var(--ink); }
+.page-switch a[aria-current="page"]::after { opacity: .7; transform: scaleX(1); }
+.page-switch a:hover { color: var(--ink); }
+.page-switch a:hover::after { opacity: .4; transform: scaleX(1); }
+a:focus-visible, button:focus-visible { outline: 1px solid #77776f; outline-offset: 3px; border-radius: 2px; }
+.source {
+  position: fixed; z-index: 4; bottom: 31px; left: var(--left);
+  width: var(--column); padding-right: 4px; margin: 0;
+  color: #797972; font-size: 9px; line-height: 1.7; letter-spacing: .025em;
+}
+.source cite { font-style: normal; }
+.reading-text { overflow-wrap: anywhere; width: var(--column); margin: var(--top) auto 100px; font-size: 14px; line-height: 2; }
+.reading-text p { margin: 0 0 28px; }
+.is-ready .reading-text {
+  position: absolute; width: 1px; height: 1px; padding: 0;
+  margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.scroll-cue {
+  display: none; position: fixed; z-index: 5; right: 28px; bottom: 20px;
+  width: 44px; height: 44px; border: 0; padding: 0; background: transparent;
+  color: #86867e; font: 16px var(--mono); cursor: pointer;
+  transition: opacity .3s, color .2s;
+}
+.is-ready .scroll-cue { display: block; }
+.scroll-cue:hover { color: var(--ink); }
+.scroll-cue[hidden] { display: none; }
+#scroll-space { width: 1px; pointer-events: none; }
+@view-transition { navigation: auto; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .35s; }
+@media (max-width: 600px) {
+  :root { --column: calc(100vw - 56px); }
+  .page-switch { top: 16px; right: 16px; }
+  .source { bottom: 25px; padding-right: 34px; font-size: 8px; }
+  .scroll-cue { right: 10px; bottom: 15px; }
+}
+@media (max-height: 480px) {
+  .page-switch { top: 8px; }
+  .source { bottom: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}
+
+#reading-canvas:focus-visible { outline: 1px solid #99998f; outline-offset: -16px; }
+.is-static body[data-experience="field"] { height: auto; overflow-y: auto; }
+.is-static #reading-canvas { display: none; }
+.is-static .reading-text {
+  position: relative; width: var(--column); height: auto; margin: 94px auto 44px;
+  padding: 0; overflow: visible; clip-path: none; white-space: normal;
+}
+.is-static .source { position: relative; left: auto; bottom: auto; margin: 32px auto; }
+
+.is-static #scroll-space, .is-static .scroll-cue { display: none; }
+</style>
+</head>
+<body data-experience="field">
+<nav class="page-switch" aria-label="切换文字体验"><a href="index.html" aria-label="01 · 文字粒子" aria-current="page">01</a><a href="waves.html" aria-label="02 · 文字波浪">02</a></nav>
+<canvas id="reading-canvas" tabindex="0" role="button" aria-label="文字互动区域，按 Enter 或空格产生涟漪"></canvas>
+<main class="reading-text" aria-label="The Odyssey"><p>Tell me, O Muse, of the man of many devices, who wandered full many ways after he had sacked the sacred citadel of Troy. Many were the men whose cities he saw and whose mind he learned, aye, and many the woes he suffered in his heart upon the sea, seeking to win his own life and the return of his comrades.</p></main>
+
+<p class="source">Homer <span aria-hidden="true">·</span> <cite>The Odyssey</cite></p>
+<script>/* Local, finite text motion. The shared runtime owns events and animation. */
+(function () {
+  'use strict';
+
+  window.createFieldExperience = function ({ canvas, ctx, text, layout, reduceMotion, requestDraw }) {
+    let current = layout;
+    let reduced = Boolean(reduceMotion);
+    let particles = [];
+    let pointerPosition = null;
+    let lastFrame = 0;
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+    function wrap(value, maxWidth) {
+      const lines = [];
+      let sourceIndex = 0;
+      const paragraphs = String(value).trim().split(/\n\s*\n/);
+      paragraphs.forEach((paragraph, paragraphIndex) => {
+        let line = '';
+        let lineStart = sourceIndex;
+        const words = paragraph.trim().split(/\s+/);
+        words.forEach((word) => {
+          const candidate = line ? line + ' ' + word : word;
+          if (line && ctx.measureText(candidate).width > maxWidth) {
+            lines.push({ value: line, start: lineStart });
+            sourceIndex += line.length + 1;
+            line = '';
+            lineStart = sourceIndex;
+          }
+          // This also keeps unusually long unbroken words inside narrow screens.
+          if (ctx.measureText(word).width > maxWidth) {
+            if (line) {
+              lines.push({ value: line, start: lineStart });
+              sourceIndex += line.length + 1;
+              line = '';
+              lineStart = sourceIndex;
+            }
+            for (const character of word) {
+              if (line && ctx.measureText(line + character).width > maxWidth) {
+                lines.push({ value: line, start: lineStart });
+                sourceIndex += line.length;
+                line = '';
+                lineStart = sourceIndex;
+              }
+              line += character;
+            }
+          } else {
+            line = line ? line + ' ' + word : word;
+          }
+        });
+        if (line) {
+          lines.push({ value: line, start: lineStart });
+          sourceIndex += line.length;
+        }
+        if (paragraphIndex < paragraphs.length - 1) {
+          lines.push({ value: '', start: sourceIndex });
+          sourceIndex += 2;
+        }
+      });
+      return lines;
+    }
+
+    function resize(nextLayout) {
+      current = nextLayout;
+      ctx.font = current.font || current.fontSize + 'px "Courier New", monospace';
+      const previous = new Map(particles.map((particle) => [particle.id, particle]));
+      const widths = new Map();
+      const lines = wrap(text, Math.max(24, current.columnWidth));
+      particles = [];
+      lines.forEach((line, row) => {
+        let x = current.left;
+        Array.from(line.value).forEach((character, column) => {
+          if (!widths.has(character)) widths.set(character, ctx.measureText(character).width);
+          const width = widths.get(character);
+          const id = line.start + column;
+          if (character !== ' ') {
+            const old = previous.get(id);
+            particles.push({
+              id, character, width, x,
+              y: current.top + current.fontSize + row * current.lineHeight,
+              dx: old && !reduced ? old.dx : 0,
+              dy: old && !reduced ? old.dy : 0,
+              vx: old && !reduced ? old.vx : 0,
+              vy: old && !reduced ? old.vy : 0,
+              // Slightly different return times avoid a mechanical group snap.
+              spring: 63 + ((id * 37) % 29),
+              damping: 12.8 + ((id * 17) % 11) * 0.24,
+              pending: []
+            });
+          }
+          x += width;
+        });
+      });
+      pointerPosition = null;
+      lastFrame = 0;
+      if (requestDraw) requestDraw();
+    }
+
+    function addVelocity(particle, vx, vy) {
+      particle.vx += vx;
+      particle.vy += vy;
+      const magnitude = Math.hypot(particle.vx, particle.vy);
+      if (magnitude > 360) {
+        particle.vx *= 360 / magnitude;
+        particle.vy *= 360 / magnitude;
+      }
+    }
+
+    function pointer(type, event) {
+      if (type === 'leave' || type === 'up') {
+        pointerPosition = null;
+        return;
+      }
+      if (reduced || !event) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const now = performance.now();
+      if (type === 'down') {
+        pointerPosition = { x, y, now };
+        let touched = false;
+        const radius = Math.min(265, Math.max(165, current.columnWidth * 0.65));
+        particles.forEach((particle) => {
+          const px = particle.x + particle.dx + particle.width * 0.5;
+          const py = particle.y + particle.dy - current.fontSize * 0.4;
+          const distance = Math.hypot(px - x, py - y);
+          if (distance >= radius) return;
+          const angle = distance > 0.1 ? Math.atan2(py - y, px - x) : particle.id * 2.399;
+          const strength = 105 * Math.pow(1 - distance / radius, 0.7) + 8;
+          particle.pending.push({
+            at: now + distance / 0.75,
+            vx: Math.cos(angle) * strength,
+            vy: Math.sin(angle) * strength
+          });
+          if (particle.pending.length > 6) particle.pending.shift();
+          touched = true;
+        });
+        if (touched && requestDraw) requestDraw();
+        return;
+      }
+      if (type !== 'move') return;
+      const previous = pointerPosition;
+      pointerPosition = { x, y, now };
+      if (!previous) return;
+      const dx = x - previous.x;
+      const dy = y - previous.y;
+      const travel = Math.hypot(dx, dy);
+      const elapsed = Math.max(0.008, (now - previous.now) / 1000);
+      if (travel < 0.2 || elapsed > 0.25) return;
+      const speed = Math.min(2000, travel / elapsed);
+      const fast = clamp((speed - 180) / 950, 0, 1);
+      const radius = 64 + fast * 30;
+      const directionX = dx / travel;
+      const directionY = dy / travel;
+      const strength = Math.min(30, travel) * (2.0 + fast * 1.3);
+      let touched = false;
+      particles.forEach((particle) => {
+        const px = particle.x + particle.dx + particle.width * 0.5;
+        const py = particle.y + particle.dy - current.fontSize * 0.4;
+        // Use the full gesture segment, so a fast swipe cannot skip the text.
+        const projection = clamp(((px - previous.x) * dx + (py - previous.y) * dy) / (travel * travel), 0, 1);
+        const nearestX = previous.x + projection * dx;
+        const nearestY = previous.y + projection * dy;
+        const offsetX = px - nearestX;
+        const offsetY = py - nearestY;
+        const distance = Math.hypot(offsetX, offsetY);
+        if (distance >= radius) return;
+        const falloff = Math.pow(1 - distance / radius, 2);
+        const outwardX = distance > 0.1 ? offsetX / distance : -directionY;
+        const outwardY = distance > 0.1 ? offsetY / distance : directionX;
+        addVelocity(particle,
+          (outwardX * (1 - fast * 0.65) + directionX * fast * 1.7) * strength * falloff,
+          (outwardY * (1 - fast * 0.65) + directionY * fast * 1.7) * strength * falloff
+        );
+        touched = true;
+      });
+      if (touched && requestDraw) requestDraw();
+    }
+
+    function frame(now, dt) {
+      let active = false;
+      const supplied = Number.isFinite(dt) && dt > 0 ? (dt > 1 ? dt / 1000 : dt) : (lastFrame ? (now - lastFrame) / 1000 : 1 / 60);
+      const step = clamp(supplied, 1 / 240, 1 / 30);
+      lastFrame = now;
+      ctx.font = current.font || current.fontSize + 'px "Courier New", monospace';
+      ctx.textBaseline = 'alphabetic';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#292927';
+      particles.forEach((particle) => {
+        if (!reduced) {
+          particle.pending = particle.pending.filter((impulse) => {
+            if (impulse.at > now) return true;
+            addVelocity(particle, impulse.vx, impulse.vy);
+            return false;
+          });
+          particle.vx += (-particle.dx * particle.spring - particle.vx * particle.damping) * step;
+          particle.vy += (-particle.dy * particle.spring - particle.vy * particle.damping) * step;
+          particle.dx += particle.vx * step;
+          particle.dy += particle.vy * step;
+          const leftBound = Math.max(-42, Math.min(0, 8 - particle.x));
+          const rightBound = Math.min(42, Math.max(0, current.width - 8 - particle.x - particle.width));
+          const topBound = Math.max(-34, Math.min(0, current.fontSize + 8 - particle.y));
+          const bottomBound = Math.min(34, Math.max(0, current.height - 8 - particle.y));
+          const boundedX = clamp(particle.dx, leftBound, rightBound);
+          const boundedY = clamp(particle.dy, topBound, bottomBound);
+          if (boundedX !== particle.dx) particle.vx *= 0.3;
+          if (boundedY !== particle.dy) particle.vy *= 0.3;
+          particle.dx = boundedX;
+          particle.dy = boundedY;
+          const moving = Math.abs(particle.dx) + Math.abs(particle.dy) > 0.035 || Math.abs(particle.vx) + Math.abs(particle.vy) > 0.07;
+          if (!moving) {
+            particle.dx = particle.dy = particle.vx = particle.vy = 0;
+          }
+          active = active || moving || particle.pending.length > 0;
+        }
+        ctx.fillText(particle.character, particle.x + particle.dx, particle.y + particle.dy);
+      });
+      if (!active) lastFrame = 0;
+      return active;
+    }
+
+    function setReducedMotion(value) {
+      reduced = Boolean(value);
+      pointerPosition = null;
+      lastFrame = 0;
+      particles.forEach((particle) => {
+        particle.dx = particle.dy = particle.vx = particle.vy = 0;
+        particle.pending = [];
+      });
+      if (requestDraw) requestDraw();
+    }
+
+    resize(layout);
+    return { resize, frame, pointer, setReducedMotion };
+  };
+}());
+</script>
+<script>(function () {
+  'use strict';
+  const canvas = document.getElementById('reading-canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const mode = document.body.dataset.experience;
+  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let experience = null, frameId = 0, lastTime = 0;
+  let L, ratio, staticLayout = false;
+  const paragraphs = [...document.querySelectorAll('.reading-text p')].map(p => p.textContent.trim());
+  function requestDraw() {
+    if (!frameId && !document.hidden) frameId = requestAnimationFrame(draw);
+  }
+  function draw(now) {
+    frameId = 0;
+    if (!experience || staticLayout) return;
+    const dt = lastTime ? Math.min(.05, (now - lastTime) / 1000) : 1 / 60;
+    lastTime = now;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, L.width, L.height);
+    if (experience.frame(now, dt)) requestDraw();
+  }
+  function size() {
+    const width = window.innerWidth, height = window.innerHeight;
+    const fontSize = height < 560 ? 12 : 14;
+    const lineHeight = fontSize * 2;
+    const columnWidth = Math.min(448, width - 56);
+    const left = (width - columnWidth) / 2;
+    const top = Math.max(94, Math.min(height * .3, height - 300));
+    ratio = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    L = { width, height, fontSize, lineHeight, columnWidth, left, top, font: `${fontSize}px "Courier New", Courier, monospace` };
+    document.documentElement.style.setProperty('--column', columnWidth + 'px');
+    document.documentElement.style.setProperty('--left', left + 'px');
+    document.documentElement.style.setProperty('--top', top + 'px');
+    ctx.font = L.font;
+    let line = '', lineCount = 1;
+    for (const word of paragraphs.join(' ').split(/\s+/)) {
+      const next = line ? line + ' ' + word : word;
+      if (line && ctx.measureText(next).width > columnWidth) { lineCount++; line = word; }
+      else line = next;
+    }
+    let endingLine = '', endingCount = 1;
+    for (const word of paragraphs[paragraphs.length - 1].split(/\s+/)) {
+      const next = endingLine ? endingLine + ' ' + word : word;
+      if (endingLine && ctx.measureText(next).width > columnWidth) { endingCount++; endingLine = word; }
+      else endingLine = next;
+    }
+    staticLayout = mode === 'field'
+      ? top + lineCount * lineHeight > height - 64
+      : endingCount * lineHeight > height - 160;
+    document.documentElement.classList.toggle('is-static', staticLayout);
+    if (experience) experience.resize(L);
+    requestDraw();
+  }
+  size();
+  const options = { canvas, ctx, text: paragraphs.join(' '), paragraphs, layout: L, reduceMotion: motion.matches, requestDraw };
+  experience = mode === 'field' ? window.createFieldExperience(options) : window.createWaveExperience(options);
+  document.documentElement.classList.add('is-ready');
+  for (const [eventName, type] of [['pointermove', 'move'], ['pointerdown', 'down'], ['pointerleave', 'leave'], ['pointerup', 'up'], ['pointercancel', 'leave']]) {
+    canvas.addEventListener(eventName, event => {
+      if (type === 'down' && event.button !== 0) return;
+      experience.pointer(type, event);
+      requestDraw();
+    }, { passive: true });
+  }
+  if (mode === 'field') {
+    canvas.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      if (event.repeat) return;
+      experience.pointer('down', { clientX: L.left + L.columnWidth / 2, clientY: L.top + L.lineHeight * 2.5, button: 0 });
+      requestDraw();
+    });
+  }
+  window.addEventListener('resize', size, { passive: true });
+  motion.addEventListener('change', event => { experience.setReducedMotion(event.matches); requestDraw(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { cancelAnimationFrame(frameId); frameId = 0; }
+    else { lastTime = 0; requestDraw(); }
+  });
+  window.addEventListener('pageshow', () => { lastTime = 0; size(); });
+  requestDraw();
+}());
+</script>
+</body>
+</html>
